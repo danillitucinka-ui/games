@@ -14,18 +14,16 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup MSVC and install SFML via NuGet
+    - name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Install SFML via NuGet
+    - name: Download and setup SFML
       run: |
-        nuget install SFML -Version 2.5.1 -OutputDirectory packages
-        # Copy headers
-        xcopy packages\SFML.2.5.1\build\native\include\* include\ /E /I /Y
-        # Copy libs
-        xcopy packages\SFML.2.5.1\build\native\lib\x64\v142\*.lib lib\ /Y
-        # Copy DLLs
-        xcopy packages\SFML.2.5.1\runtimes\win-x64\native\*.dll . /Y
+        # Download SFML 2.5.1 for Visual C++ 14 (2015) 64-bit
+        curl -L -o sfml.zip https://www.sfml-dev.org/files/SFML-2.5.1-windows-vc14-64-bit.zip
+        7z x sfml.zip -o"C:\"
+        # SFML will be extracted to C:\SFML-2.5.1
+        dir C:\
 
     - name: Setup MinGW
       uses: egor-tensin/setup-mingw@v2
@@ -38,7 +36,7 @@ jobs:
 
     - name: Configure with CMake
       run: |
-        cmake .. -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release -DSFML_DIR="${{ github.workspace }}/packages/SFML.2.5.1/build/native/cmake/sfml"
+        cmake .. -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release -DSFML_DIR="C:\SFML-2.5.1\lib\cmake\SFML"
       working-directory: cpp_game/build
 
     - name: Build
@@ -48,8 +46,8 @@ jobs:
 
     - name: Copy SFML DLLs
       run: |
-        # Copy DLLs from NuGet package
-        copy packages\SFML.2.5.1\runtimes\win-x64\native\*.dll cpp_game\build\Release\
+        # Copy SFML DLLs
+        copy "C:\SFML-2.5.1\bin\*.dll" cpp_game\build\Release\
         # Copy executable to build root for artifact
         copy cpp_game\build\Release\ShirotaBloodPolarity.exe cpp_game\build\
 
