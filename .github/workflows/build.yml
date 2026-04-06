@@ -14,15 +14,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Download and setup SFML
-      run: |
-        # Download SFML 2.5.1 for MinGW (32-bit)
-        curl -L -o sfml.zip https://www.sfml-dev.org/files/SFML-2.5.1-windows-gcc-7.3.0-32-bit.zip
-        7z x sfml.zip -o"C:\"
-        # Rename folder for simplicity
-        mv "C:\SFML-2.5.1" "C:\SFML"
-        # Add to PATH
-        echo "C:\SFML\bin" >> $GITHUB_PATH
+    - name: Setup vcpkg and SFML
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: 'f14984b2c6b8c4fc7b6a3b2798b5b3e7b3d1e4b5'
+        vcpkgArguments: 'sfml'
+        vcpkgTriplet: 'x64-windows'
 
     - name: Setup MinGW
       uses: egor-tensin/setup-mingw@v2
@@ -34,22 +31,24 @@ jobs:
       working-directory: cpp_game
 
     - name: Configure with CMake
-      run: cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DSFML_DIR="C:\SFML\lib\cmake\SFML"
+      run: |
+        cmake .. -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows
       working-directory: cpp_game/build
 
     - name: Build
-      run: mingw32-make -j4
+      run: |
+        cmake --build . --config Release
       working-directory: cpp_game/build
 
     - name: Copy SFML DLLs
       run: |
-        cp "C:\SFML\bin\sfml-graphics-2.dll" cpp_game/build/
-        cp "C:\SFML\bin\sfml-window-2.dll" cpp_game/build/
-        cp "C:\SFML\bin\sfml-system-2.dll" cpp_game/build/
-        cp "C:\SFML\bin\sfml-audio-2.dll" cpp_game/build/
-        # Also copy MinGW runtime if needed
-        cp "C:\mingw64\bin\libgcc_s_seh-1.dll" cpp_game/build/ 2>/dev/null || true
-        cp "C:\mingw64\bin\libstdc++-6.dll" cpp_game/build/ 2>/dev/null || true
+        # Copy SFML DLLs from vcpkg
+        cp "${{ github.workspace }}/vcpkg/installed/x64-windows/bin/sfml-graphics-2.dll" cpp_game/build/Release/ 2>/dev/null || cp "${{ github.workspace }}/vcpkg/installed/x64-windows/bin/sfml-graphics.dll" cpp_game/build/Release/ 2>/dev/null || true
+        cp "${{ github.workspace }}/vcpkg/installed/x64-windows/bin/sfml-window-2.dll" cpp_game/build/Release/ 2>/dev/null || cp "${{ github.workspace }}/vcpkg/installed/x64-windows/bin/sfml-window.dll" cpp_game/build/Release/ 2>/dev/null || true
+        cp "${{ github.workspace }}/vcpkg/installed/x64-windows/bin/sfml-system-2.dll" cpp_game/build/Release/ 2>/dev/null || cp "${{ github.workspace }}/vcpkg/installed/x64-windows/bin/sfml-system.dll" cpp_game/build/Release/ 2>/dev/null || true
+        cp "${{ github.workspace }}/vcpkg/installed/x64-windows/bin/sfml-audio-2.dll" cpp_game/build/Release/ 2>/dev/null || cp "${{ github.workspace }}/vcpkg/installed/x64-windows/bin/sfml-audio.dll" cpp_game/build/Release/ 2>/dev/null || true
+        # Copy executable to build root for artifact
+        cp cpp_game/build/Release/ShirotaBloodPolarity.exe cpp_game/build/ 2>/dev/null || true
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -66,7 +65,7 @@ jobs:
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       uses: softprops/action-gh-release@v1
       with:
-        files: cpp_game/build/ShirotaBloodPolarity.exe
+        files: cpp_game/build/Release/ShirotaBloodPolarity.exe
         tag_name: v${{ github.run_number }}
         name: Shirota Blood Polarity Ultimate v${{ github.run_number }}
         body: |
