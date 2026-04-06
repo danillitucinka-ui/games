@@ -1,0 +1,105 @@
+name: Build Shirota Blood Polarity
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download and setup SFML
+      run: |
+        # Download SFML 2.5.1 for MinGW (32-bit)
+        curl -L -o sfml.zip https://www.sfml-dev.org/files/SFML-2.5.1-windows-gcc-7.3.0-32-bit.zip
+        7z x sfml.zip -o"C:\"
+        # Rename folder for simplicity
+        mv "C:\SFML-2.5.1" "C:\SFML"
+        # Add to PATH
+        echo "C:\SFML\bin" >> $GITHUB_PATH
+
+    - name: Setup MinGW
+      uses: egor-tensin/setup-mingw@v2
+      with:
+        platform: x64
+
+    - name: Create build directory
+      run: mkdir build
+      working-directory: cpp_game
+
+    - name: Configure with CMake
+      run: cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DSFML_DIR="C:\SFML\lib\cmake\SFML"
+      working-directory: cpp_game/build
+
+    - name: Build
+      run: mingw32-make -j4
+      working-directory: cpp_game/build
+
+    - name: Copy SFML DLLs
+      run: |
+        cp "C:\SFML\bin\sfml-graphics-2.dll" cpp_game/build/
+        cp "C:\SFML\bin\sfml-window-2.dll" cpp_game/build/
+        cp "C:\SFML\bin\sfml-system-2.dll" cpp_game/build/
+        cp "C:\SFML\bin\sfml-audio-2.dll" cpp_game/build/
+        # Also copy MinGW runtime if needed
+        cp "C:\mingw64\bin\libgcc_s_seh-1.dll" cpp_game/build/ 2>/dev/null || true
+        cp "C:\mingw64\bin\libstdc++-6.dll" cpp_game/build/ 2>/dev/null || true
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: ShirotaBloodPolarity-Windows
+        path: |
+          cpp_game/build/ShirotaBloodPolarity.exe
+          cpp_game/build/*.dll
+          cpp_game/resources/
+          README.md
+          cpp_game/ULTIMATE_README.md
+
+    - name: Create Release
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      uses: actions/create-release@v1
+      id: create_release
+      with:
+        draft: false
+        prerelease: false
+        release_name: Release ${{ github.ref }}
+        tag_name: v${{ github.run_number }}
+        body: |
+          ## Shirota: Blood Polarity Ultimate v${{ github.run_number }}
+
+          ### What's New:
+          - Full game with 5 characters, 6 levels, multiple game modes
+          - Story mode with dialogues
+          - Achievements system
+          - Save/Load functionality
+          - Enhanced graphics and audio
+
+          ### Installation:
+          1. Download the zip file
+          2. Extract to a folder
+          3. Run ShirotaBloodPolarity.exe
+
+          ### System Requirements:
+          - Windows 7/8/10/11
+          - No additional dependencies required
+
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+
+    - name: Upload Release Asset
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: cpp_game/build/ShirotaBloodPolarity.exe
+        asset_name: ShirotaBloodPolarity.exe
+        asset_content_type: application/octet-stream
