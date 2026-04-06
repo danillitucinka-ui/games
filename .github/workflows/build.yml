@@ -14,12 +14,18 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup vcpkg and SFML
-      uses: lukka/run-vcpkg@v11
-      with:
-        vcpkgGitCommitId: 'f14984b2c6b8c4fc7b6a3b2798b5b3e7b3d1e4b5'
-        vcpkgArguments: 'sfml'
-        vcpkgTriplet: 'x64-windows'
+    - name: Setup MSVC and install SFML via NuGet
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Install SFML via NuGet
+      run: |
+        nuget install SFML -Version 2.5.1 -OutputDirectory packages
+        # Copy headers
+        xcopy packages\SFML.2.5.1\build\native\include\* include\ /E /I /Y
+        # Copy libs
+        xcopy packages\SFML.2.5.1\build\native\lib\x64\v142\*.lib lib\ /Y
+        # Copy DLLs
+        xcopy packages\SFML.2.5.1\runtimes\win-x64\native\*.dll . /Y
 
     - name: Setup MinGW
       uses: egor-tensin/setup-mingw@v2
@@ -32,7 +38,7 @@ jobs:
 
     - name: Configure with CMake
       run: |
-        cmake .. -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows
+        cmake .. -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release -DSFML_DIR="${{ github.workspace }}/packages/SFML.2.5.1/build/native/cmake/sfml"
       working-directory: cpp_game/build
 
     - name: Build
@@ -42,13 +48,10 @@ jobs:
 
     - name: Copy SFML DLLs
       run: |
-        # Copy SFML DLLs from vcpkg
-        cp "${{ github.workspace }}/vcpkg/installed/x64-windows/bin/sfml-graphics-2.dll" cpp_game/build/Release/ 2>/dev/null || cp "${{ github.workspace }}/vcpkg/installed/x64-windows/bin/sfml-graphics.dll" cpp_game/build/Release/ 2>/dev/null || true
-        cp "${{ github.workspace }}/vcpkg/installed/x64-windows/bin/sfml-window-2.dll" cpp_game/build/Release/ 2>/dev/null || cp "${{ github.workspace }}/vcpkg/installed/x64-windows/bin/sfml-window.dll" cpp_game/build/Release/ 2>/dev/null || true
-        cp "${{ github.workspace }}/vcpkg/installed/x64-windows/bin/sfml-system-2.dll" cpp_game/build/Release/ 2>/dev/null || cp "${{ github.workspace }}/vcpkg/installed/x64-windows/bin/sfml-system.dll" cpp_game/build/Release/ 2>/dev/null || true
-        cp "${{ github.workspace }}/vcpkg/installed/x64-windows/bin/sfml-audio-2.dll" cpp_game/build/Release/ 2>/dev/null || cp "${{ github.workspace }}/vcpkg/installed/x64-windows/bin/sfml-audio.dll" cpp_game/build/Release/ 2>/dev/null || true
+        # Copy DLLs from NuGet package
+        copy packages\SFML.2.5.1\runtimes\win-x64\native\*.dll cpp_game\build\Release\
         # Copy executable to build root for artifact
-        cp cpp_game/build/Release/ShirotaBloodPolarity.exe cpp_game/build/ 2>/dev/null || true
+        copy cpp_game\build\Release\ShirotaBloodPolarity.exe cpp_game\build\
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
